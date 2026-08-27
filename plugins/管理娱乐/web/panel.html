@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>管理娱乐 · 管理面板</title>
+  <link rel="stylesheet" href="/api/ext/superadmin/assets/panel.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="关闭侧边栏"></button>
+    <aside class="sidebar" aria-label="管理娱乐导航">
+      <div class="brand">
+        <div class="logo" aria-label="管理娱乐">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a5 5 0 0 1 5 5c0 .7-.1 1.3-.4 1.9 2.7 1.3 4.4 4.1 4.4 7.1 0 1.7-.5 3.2-1.4 4.5H4.4A7.5 7.5 0 0 1 3 16c0-3 1.7-5.8 4.4-7.1A5 5 0 0 1 7 7a5 5 0 0 1 5-5Z"/></svg>
+        </div>
+        <div><strong>管理娱乐</strong><small>SuperAdmin</small></div>
+      </div>
+      <nav class="nav">
+        <button class="active" data-page="overview" type="button" title="数据总览"><i><svg viewBox="0 0 24 24"><path d="M4 20V4M4 20h16M8 16v-4M13 16V8M18 16v-6"/></svg></i><span>总览</span></button>
+        <button data-page="users" type="button" title="用户管理"><i><svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-8 0M12 3v2M9 4v2M15 4v2M4 21h16"/></svg></i><span>用户</span></button>
+        <button data-page="config" type="button" title="参数配置"><i><svg viewBox="0 0 24 24"><path d="M4 6h16M7 3v6M4 18h16M17 15v6M4 12h16M12 9v6"/></svg></i><span>配置</span></button>
+        <button data-page="features" type="button" title="功能开关"><i><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5"/></svg></i><span>功能</span></button>
+        <button data-page="group" type="button" title="群管设置"><i><svg viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.6 8.9a1.3 1.3 0 0 1-.8 0C7.5 20.5 4 18 4 13V5.8l8-3 8 3Z"/></svg></i><span>群管</span></button>
+        <button data-page="replies" type="button" title="回复文案"><i><svg viewBox="0 0 24 24"><path d="M4 6h16M7 3v6M4 18h16M17 15v6M4 12h16"/></svg></i><span>文案</span></button>
+        <button data-page="apikeys" type="button" title="接口密钥"><i><svg viewBox="0 0 24 24"><path d="M7 14a4 4 0 1 1 3-6.5L21 18v3h-4v-2h-2v-2h-2l-2-2a4 4 0 0 1-4-1Z"/></svg></i><span>密钥</span></button>
+        <button data-page="logs" type="button" title="操作日志"><i><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h4"/></svg></i><span>日志</span></button>
+      </nav>
+      <div class="service-state"><span class="pulse"></span><span>服务运行中</span></div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button class="icon-btn sidebar-toggle" id="sidebar-toggle" type="button" title="展开导航">☰</button>
+        <h1 id="page-title">数据总览</h1>
+        <div class="top-actions">
+          <select id="gid-select" class="gid-select" title="选择群（积分/黑名单按群独立）"></select>
+          <button class="btn" id="refresh-btn" type="button">刷新</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- 总览 -->
+        <section class="page active" id="page-overview">
+          <div class="metrics">
+            <article class="metric primary"><span>注册用户</span><b id="m-users">0</b><small>累计参与</small></article>
+            <article class="metric success"><span>积分总量</span><b id="m-points">0</b><small>全服发放</small></article>
+            <article class="metric warning"><span>反甲存量</span><b id="m-armor">0</b><small>护盾总数</small></article>
+            <article class="metric danger"><span>黑名单</span><b id="m-blacklist">0</b><small>拦截成员</small></article>
+            <article class="metric info"><span>操作日志</span><b id="m-logs">0</b><small>累计记录</small></article>
+          </div>
+          <div class="split">
+            <section class="panel">
+              <div class="panel-head"><div><h2>积分榜</h2><p>按积分从高到低排序</p></div></div>
+              <div class="panel-body compact-list" id="top-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head"><div><h2>快速指令</h2><p>群内发送即可使用</p></div></div>
+              <div class="panel-body" id="cmd-summary"></div>
+            </section>
+          </div>
+        </section>
+
+        <!-- 用户管理 -->
+        <section class="page" id="page-users">
+          <div class="toolbar"><input id="user-search" class="inp" type="text" placeholder="搜索昵称或ID…" style="width:260px"></div>
+          <div class="table-wrap"><table><thead><tr><th>#</th><th>用户</th><th>积分</th><th>反甲</th><th>连续签到</th><th>调整</th></tr></thead><tbody id="users-tbody"></tbody></table></div>
+          <div class="panel-actions"><button class="btn primary" id="users-add-points" type="button">给选中用户加分</button></div>
+        </section>
+
+        <!-- 参数配置 -->
+        <section class="page" id="page-config">
+          <div class="panel" style="max-width:680px">
+            <div class="panel-head"><div><h2>参数配置</h2><p>修改后点击保存立即生效</p></div></div>
+            <div class="panel-body config-grid" id="config-grid"></div>
+            <div class="panel-actions"><button class="btn primary" id="save-config">保存配置</button></div>
+          </div>
+        </section>
+
+        <!-- 功能开关 -->
+        <section class="page" id="page-features">
+          <div class="panel">
+            <div class="panel-head"><div><h2>功能开关</h2><p>点击开关即时生效</p></div></div>
+            <div class="panel-body feature-grid" id="feature-grid"></div>
+          </div>
+        </section>
+
+        <!-- 群管设置 -->
+        <section class="page" id="page-group">
+          <div class="split">
+            <section class="panel">
+              <div class="panel-head"><div><h2>违禁词过滤</h2><p>一行一词，命中自动撤回+警告</p></div></div>
+              <div class="panel-body"><textarea id="banned-words" class="inp" rows="7" style="width:100%"></textarea></div>
+              <div class="panel-actions"><button class="btn primary" id="save-banned">保存违禁词</button></div>
+            </section>
+            <section class="panel">
+              <div class="panel-head"><div><h2>入群欢迎 & 验证</h2><p>验证码自动随机生成，用户回复数字即验证</p></div></div>
+              <div class="panel-body">
+                <label>欢迎语 <input id="welcome-msg" class="inp" type="text" style="width:100%" placeholder="👋 欢迎 {nickname} 加入 {group_name}">
+                  <span class="hint">支持 {nickname} 新成员昵称、{group_name} 群名</span></label>
+                <label style="margin-top:10px"><input type="checkbox" id="verify-enabled"> 启用入群验证</label>
+                <label>验证方式
+                  <select id="verify-mode" class="inp" style="width:auto">
+                    <option value="digits">数字验证码（随机N位）</option>
+                    <option value="math">数学计算（随机加减题）</option>
+                  </select>
+                </label>
+                <label>验证码位数 <input id="verify-digits" class="inp" type="number" min="3" max="8" value="4" style="width:80px"></label>
+                <label>答错机会 <input id="verify-tries" class="inp" type="number" min="1" max="5" value="3" style="width:80px"></label>
+                <label>超时(秒) <input id="verify-timeout" class="inp" type="number" min="60" max="600" value="300" style="width:100px"></label>
+              </div>
+              <div class="panel-actions"><button class="btn primary" id="save-welcome">保存设置</button></div>
+            </section>
+          </div>
+          <section class="panel" style="margin-top:16px">
+            <div class="panel-head"><div><h2>黑名单管理</h2><p>拉黑用户将被永久禁言并禁止入群</p></div>
+              <div style="display:flex;gap:6px">
+                <input id="blacklist-uid" class="inp" type="text" placeholder="QQ号" style="width:140px">
+                <input id="blacklist-reason" class="inp" type="text" placeholder="原因" style="width:180px">
+                <button class="btn primary" id="blacklist-add">添加</button>
+              </div>
+            </div>
+            <div class="panel-body" id="blacklist-list"></div>
+          </section>
+        </section>
+
+        <!-- 回复文案 -->
+        <section class="page" id="page-replies">
+          <div class="panel" style="max-width:680px">
+            <div class="panel-head"><div><h2>回复文案</h2><p>支持 {points} {nickname} 等变量</p></div></div>
+            <div class="panel-body config-grid" id="replies-grid"></div>
+            <div class="panel-actions"><button class="btn primary" id="save-replies">保存文案</button></div>
+          </div>
+        </section>
+
+        <!-- 接口密钥 -->
+        <section class="page" id="page-apikeys">
+          <div class="panel" style="max-width:680px">
+            <div class="panel-head"><div><h2>接口密钥</h2><p>填写各接口的 API Key，保存后立即生效</p></div></div>
+            <div class="panel-body panel-body stack" id="apikeys-list">
+              <div class="empty">加载中…</div>
+            </div>
+            <div class="panel-actions"><button class="btn primary" id="save-apikeys">保存密钥</button></div>
+          </div>
+        </section>
+
+        <!-- 操作日志 -->
+        <section class="page" id="page-logs">
+          <div class="panel">
+            <div class="panel-head"><div><h2>操作日志</h2><p>最近 100 条操作记录</p></div>
+              <button class="btn" id="refresh-logs" type="button">刷新</button>
+            </div>
+            <div class="panel-body" id="logs-list"></div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <div id="toast" class="toast" hidden></div>
+  </div>
+  <script src="/api/ext/superadmin/assets/panel.js"></script>
+</body>
+</html>
