@@ -122,7 +122,7 @@ const CONFIG_FIELDS = [
 ];
 async function loadConfigForm() {
   const el = $("#config-grid"); if (!el) return;
-  try { CONFIG = (await api("GET", "config")).config || {}; } catch (e) { errToast(e); }
+  try { CONFIG = (await api("GET", "config" + gidQuery())).config || {}; } catch (e) { errToast(e); }
   el.innerHTML = CONFIG_FIELDS.map(([k, label, def, isPct]) => {
     let v = CONFIG[k] ?? def;
     if (isPct) v = Math.round(v * 100);
@@ -138,7 +138,8 @@ async function saveConfig() {
     cfg[k] = isFinite(v) ? v : 0;
   });
   const btn = $("#save-config"); if (btn) btn.disabled = true;
-  try { await api("POST", "config", cfg); toast("配置已保存", "ok"); } catch (e) { errToast(e); }
+  if (curGid()) cfg.gid = curGid();
+  try { const m = curGid() ? "群配置已保存" : "全局配置已保存"; await api("POST", "config", cfg); toast(m, "ok"); } catch (e) { errToast(e); }
   finally { if (btn) btn.disabled = false; }
 }
 
@@ -152,7 +153,7 @@ const FEATURES = [
 ];
 async function loadFeatures() {
   const el = $("#feature-grid"); if (!el) return;
-  try { CONFIG = (await api("GET", "config")).config || {}; } catch (e) { errToast(e); }
+  try { CONFIG = (await api("GET", "config" + gidQuery())).config || {}; } catch (e) { errToast(e); }
   const f = CONFIG.features || {};
   el.innerHTML = FEATURES.map(([k, label]) =>
     '<div class="feature-item ' + (f[k] !== false ? 'on' : '') + '" data-f="' + k + '" onclick="toggleFeature(\'' + k + '\')">' +
@@ -163,7 +164,7 @@ async function toggleFeature(k) {
   const el = document.querySelector('.feature-item[data-f="' + k + '"]');
   const on = !el.classList.contains("on");
   try {
-    await api("POST", "toggle", { feature: k, enabled: on });
+    await api("POST", "toggle", { feature: k, enabled: on, gid: curGid() });
     el.classList.toggle("on", on);
     toast((on ? "开启" : "关闭") + "成功", "ok");
   } catch (e) { errToast(e); }
@@ -172,10 +173,11 @@ async function toggleFeature(k) {
 // ============ 群管设置 ============
 async function loadGroupSettings() {
   try {
-    const words = (await api("GET", "banned_words")).words || [];
+    const q = gidQuery();
+    const words = (await api("GET", "banned_words" + q)).words || [];
     $("#banned-words").value = words.join("\n");
-    $("#welcome-msg").value = (await api("GET", "welcome")).welcome || "";
-    const v = (await api("GET", "join_verify")).verify || {};
+    $("#welcome-msg").value = (await api("GET", "welcome" + q)).welcome || "";
+    const v = (await api("GET", "join_verify" + q)).verify || {};
     $("#verify-enabled").checked = !!v.enabled;
     const vm = $("#verify-mode"); if (vm) vm.value = v.mode || "digits";
     $("#verify-digits").value = v.digits || 4;
@@ -186,17 +188,18 @@ async function loadGroupSettings() {
 }
 async function saveBanned() {
   const words = $("#banned-words").value.split("\n").map(w => w.trim()).filter(Boolean);
-  try { await api("POST", "banned_words", { words }); toast("违禁词已保存", "ok"); } catch (e) { errToast(e); }
+  try { await api("POST", "banned_words", { words, gid: curGid() }); toast("违禁词已保存", "ok"); } catch (e) { errToast(e); }
 }
 async function saveWelcome() {
   try {
-    await api("POST", "welcome", { welcome: $("#welcome-msg").value });
+    await api("POST", "welcome", { welcome: $("#welcome-msg").value, gid: curGid() });
     await api("POST", "join_verify", {
       enabled: $("#verify-enabled").checked,
       mode: ($("#verify-mode") && $("#verify-mode").value) || "digits",
       digits: parseInt($("#verify-digits").value) || 4,
       tries: parseInt($("#verify-tries").value) || 3,
       timeout: parseInt($("#verify-timeout").value) || 300,
+      gid: curGid(),
     });
     toast("设置已保存", "ok");
   } catch (e) { errToast(e); }
@@ -248,7 +251,7 @@ const REPLY_KEYS = [
 ];
 async function loadReplies() {
   const el = $("#replies-grid"); if (!el) return;
-  try { CONFIG = (await api("GET", "config")).config || {}; } catch (e) { errToast(e); }
+  try { CONFIG = (await api("GET", "config" + gidQuery())).config || {}; } catch (e) { errToast(e); }
   const replies = CONFIG.replies || {};
   el.innerHTML = REPLY_KEYS.map(([k, label]) =>
     '<label>' + esc(label) + '<input id="rpl-' + k + '" class="inp" type="text" value="' + esc(replies[k] || "") + '" style="width:100%"></label>'
@@ -258,7 +261,7 @@ async function saveReplies() {
   const replies = {};
   REPLY_KEYS.forEach(([k]) => { const e = $("#rpl-" + k); if (e) replies[k] = e.value; });
   const btn = $("#save-replies"); if (btn) btn.disabled = true;
-  try { await api("POST", "replies", { replies }); toast("文案已保存", "ok"); } catch (e) { errToast(e); }
+  try { if (curGid()) replies.gid = curGid(); await api("POST", "replies", { replies }); toast("文案已保存", "ok"); } catch (e) { errToast(e); }
   finally { if (btn) btn.disabled = false; }
 }
 
@@ -318,7 +321,7 @@ function init() {
   const sr = $("#save-replies"); if (sr) sr.onclick = saveReplies;
   const sak = $("#save-apikeys"); if (sak) sak.onclick = saveApiKeys;
   const ba = $("#blacklist-add"); if (ba) ba.onclick = blacklistAdd;
-  const gsel = $("#gid-select"); if (gsel) gsel.onchange = () => { CUR_GID = gsel.value; loadOverview(); loadTop(); loadUsers(); loadGroupSettings(); };
+  const gsel = $("#gid-select"); if (gsel) gsel.onchange = () => { CUR_GID = gsel.value; loadOverview(); loadTop(); loadUsers(); loadConfigForm(); loadFeatures(); loadGroupSettings(); loadReplies(); };
   const rb = $("#refresh-btn"); if (rb) rb.onclick = () => { loadOverview(); loadTop(); loadUsers(); loadLogs(); toast("已刷新", "ok"); };
   const rl = $("#refresh-logs"); if (rl) rl.onclick = loadLogs;
   switchPage("overview");

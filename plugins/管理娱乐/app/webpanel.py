@@ -225,10 +225,22 @@ async def _api_delete_user(request):
 # ========== 功能开关 ==========
 
 async def _api_toggle(request):
-    data = await request.json()
+    data = await request.json() or {}
     feature = data.get("feature")
     enabled = bool(data.get("enabled"))
-    if feature and feature in cfg.FEATURES:
+    gid = data.get("gid", "")
+    if not feature:
+        return _json({"success": False, "error": "未知功能"})
+    if gid:
+        # 群级覆盖: 只改该群 features
+        cur = cfg._group_overrides(gid) or {}
+        feats = dict(cur.get("features") or {})
+        feats[feature] = enabled
+        cur["features"] = feats
+        cfg.save_group_config(gid, cur)
+        return _json({"success": True, "gid": gid, "feature": feature, "enabled": enabled})
+    # 全局
+    if feature in cfg.FEATURES:
         cfg.FEATURES[feature] = enabled
         d = db.get_config() or {}
         d["features"] = cfg.FEATURES
@@ -240,13 +252,19 @@ async def _api_toggle(request):
 # ========== 配置 ==========
 
 async def _api_config(request):
-    d = db.get_config()
-    return _json({"success": True, "config": d})
+    gid = request.query.get("gid", "")
+    if gid:
+        return _json({"success": True, "config": cfg.get_group_config(gid)})
+    return _json({"success": True, "config": db.get_config()})
 
 
 async def _api_save_config(request):
-    data = await request.json()
-    cfg.save_config(data)
+    data = await request.json() or {}
+    gid = data.pop("gid", "") if isinstance(data, dict) else ""
+    if gid:
+        cfg.save_group_config(gid, data)
+    else:
+        cfg.save_config(data)
     return _json({"success": True})
 
 
@@ -289,41 +307,47 @@ async def _api_logs(request):
 # ========== 违禁词 ==========
 
 async def _api_banned_words(request):
-    words = db.get_banned_words()
-    return _json({"success": True, "words": words})
+    gid = request.query.get("gid", "")
+    words = db.get_banned_words(gid) if gid else db.get_banned_words()
+    return _json({"success": True, "words": words or []})
 
 
 async def _api_save_banned_words(request):
-    data = await request.json()
+    data = await request.json() or {}
     words = data.get("words", [])
-    db.set_banned_words(words)
+    gid = data.get("gid", "")
+    db.set_banned_words(words, gid or None)
     return _json({"success": True})
 
 
 # ========== 欢迎语 ==========
 
 async def _api_welcome(request):
-    msg = db.get_welcome_msg()
-    return _json({"success": True, "welcome": msg})
+    gid = request.query.get("gid", "")
+    msg = db.get_welcome_msg(gid) if gid else db.get_welcome_msg()
+    return _json({"success": True, "welcome": msg or ""})
 
 
 async def _api_save_welcome(request):
-    data = await request.json()
+    data = await request.json() or {}
     msg = data.get("welcome", "")
-    db.set_welcome_msg(msg)
+    gid = data.get("gid", "")
+    db.set_welcome_msg(msg, gid or None)
     return _json({"success": True})
 
 
 # ========== 入群验证 ==========
 
 async def _api_join_verify(request):
-    v = db.get_join_verify()
-    return _json({"success": True, "verify": v})
+    gid = request.query.get("gid", "")
+    v = db.get_join_verify(gid) if gid else db.get_join_verify()
+    return _json({"success": True, "verify": v or {}})
 
 
 async def _api_save_join_verify(request):
-    data = await request.json()
-    db.set_join_verify(data)
+    data = await request.json() or {}
+    gid = data.pop("gid", "") if isinstance(data, dict) else ""
+    db.set_join_verify(data, gid or None)
     return _json({"success": True})
 
 
@@ -346,14 +370,25 @@ async def _api_save_blacklist(request):
 # ========== 回复文案 ==========
 
 async def _api_replies(request):
-    return _json({"success": True, "replies": cfg.REPLIES})
+    gid = request.query.get("gid", "")
+    overrides = cfg._group_overrides(gid) if gid else {}
+    replies = {**cfg.REPLIES, **(overrides.get("replies") or {})}
+    return _json({"success": True, "replies": replies})
 
 
 async def _api_save_replies(request):
-    data = await request.json()
+    data = await request.json() or {}
     replies = data.get("replies", {})
-    cfg.REPLIES.update(replies)
-    d = db.get_config() or {}
-    d["replies"] = cfg.REPLIES
-    db.set_config(d)
+    gid = data.get("gid", "")
+    if gid:
+        cur = cfg._group_overrides(gid) or {}
+        cur["replies"] = {**(cur.get("replies") or {}), **replies}
+        cfg.save_group_config(gid, cur)
+    else:
+        merged = dict(cfg.REPLIES)
+        merged.update(replies)
+        cfg.REPLIES = merged
+        d = db.get_config() or {}
+        d["replies"] = merged
+        db.set_config(d)
     return _json({"success": True})

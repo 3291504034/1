@@ -1,4 +1,4 @@
-"""全局配置 — 默认值 + 加载/保存。"""
+"""全局配置 — 默认值 + 加载/保存 + 按群覆盖。"""
 
 from .db import get_config as _db_get, set_config as _db_set
 
@@ -55,13 +55,27 @@ REPLIES = {
     "vote_result": "📊 投票: {title}\n{results}\n🏆 {winner} 胜出！",
 }
 
+# 可被群覆盖的数值参数名 (与默认值映射)
+_PARAM_NAMES = {
+    "sign_lo": SIGN_LO, "sign_hi": SIGN_HI,
+    "lottery_cost": LOTTERY_COST, "lottery_lo": LOTTERY_LO, "lottery_hi": LOTTERY_HI,
+    "lottery_win_rate": LOTTERY_WIN_RATE,
+    "robbery_lo": ROBBERY_LO, "robbery_hi": ROBBERY_HI, "robbery_rate": ROBBERY_SUCCESS_RATE,
+    "armor_cost": ARMOR_COST, "armor_days": ARMOR_DAYS,
+    "mute_cost": MUTE_COST, "revoke_cost": REVOKE_COST,
+    "redpack_min": REDPACK_MIN, "redpack_max_count": REDPACK_MAX_COUNT,
+    "step1_mute": STEP1_MUTE, "step2_mute": STEP2_MUTE,
+    "violation_reset": VIOLATION_RESET,
+    "spam_interval": SPAM_INTERVAL, "spam_count": SPAM_COUNT,
+}
+
 
 def _cfg():
     return _db_get() or {}
 
 
 def _sync(d: dict):
-    """将数据库配置同步到模块变量"""
+    """将全局配置同步到模块变量 (仅全局默认值)"""
     global SIGN_LO, SIGN_HI, LOTTERY_COST, LOTTERY_LO, LOTTERY_HI
     global LOTTERY_WIN_RATE, ROBBERY_LO, ROBBERY_HI, ROBBERY_SUCCESS_RATE
     global ARMOR_COST, ARMOR_DAYS, MUTE_COST, REVOKE_COST
@@ -97,28 +111,32 @@ def load_config():
     _init_defaults()  # 幂等: 仅填充空数据文件(违禁词/欢迎语/入群验证)
     if not d:
         # 首次启动: 写入默认配置
-        d = {
-            "sign_lo": SIGN_LO, "sign_hi": SIGN_HI,
-            "lottery_cost": LOTTERY_COST, "lottery_lo": LOTTERY_LO, "lottery_hi": LOTTERY_HI,
-            "lottery_win_rate": LOTTERY_WIN_RATE,
-            "robbery_lo": ROBBERY_LO, "robbery_hi": ROBBERY_HI, "robbery_rate": ROBBERY_SUCCESS_RATE,
-            "armor_cost": ARMOR_COST, "armor_days": ARMOR_DAYS,
-            "mute_cost": MUTE_COST, "revoke_cost": REVOKE_COST,
-            "redpack_min": REDPACK_MIN, "redpack_max_count": REDPACK_MAX_COUNT,
-            "step1_mute": STEP1_MUTE, "step2_mute": STEP2_MUTE,
-            "violation_reset": VIOLATION_RESET,
-            "spam_interval": SPAM_INTERVAL, "spam_count": SPAM_COUNT,
-            "features": dict(FEATURES),
-            "replies": dict(REPLIES),
-        }
+        d = _defaults_dict()
         _db_set(d)
         _sync(d)
     else:
         _sync(d)
 
 
+def _defaults_dict():
+    return {
+        "sign_lo": SIGN_LO, "sign_hi": SIGN_HI,
+        "lottery_cost": LOTTERY_COST, "lottery_lo": LOTTERY_LO, "lottery_hi": LOTTERY_HI,
+        "lottery_win_rate": LOTTERY_WIN_RATE,
+        "robbery_lo": ROBBERY_LO, "robbery_hi": ROBBERY_HI, "robbery_rate": ROBBERY_SUCCESS_RATE,
+        "armor_cost": ARMOR_COST, "armor_days": ARMOR_DAYS,
+        "mute_cost": MUTE_COST, "revoke_cost": REVOKE_COST,
+        "redpack_min": REDPACK_MIN, "redpack_max_count": REDPACK_MAX_COUNT,
+        "step1_mute": STEP1_MUTE, "step2_mute": STEP2_MUTE,
+        "violation_reset": VIOLATION_RESET,
+        "spam_interval": SPAM_INTERVAL, "spam_count": SPAM_COUNT,
+        "features": dict(FEATURES),
+        "replies": dict(REPLIES),
+    }
+
+
 def _init_defaults():
-    """初始化其他数据文件默认值"""
+    """初始化其他数据文件默认值 (in 可隔离的数据文件中)"""
     from .db import (
         get_banned_words, set_banned_words,
         get_welcome_msg, set_welcome_msg,
@@ -148,5 +166,91 @@ def get_config() -> dict:
     return _db_get() or {}
 
 
-def get_feature(name: str) -> bool:
+# ================= 按群配置 =================
+
+# 当前事件群上下文 (命令/拦截入口设置)
+_current_gid = ""
+
+
+def set_group_gid(gid):
+    """设置当前处理的群ID (由 points.set_group / monitor 调用)"""
+    global _current_gid
+    _current_gid = str(gid or "")
+
+
+def _gid(gid=None):
+    """获取当前事件的群ID; 无则回退上下文, 再回退全局默认"""
+    if gid is not None:
+        return str(gid)
+    return _current_gid
+
+
+def _group_overrides(gid=None):
+    """返回该群的覆盖配置 dict (无则空)"""
+    g = _gid(gid)
+    if not g:
+        return {}
+    d = _cfg()
+    groups = d.get("groups") or {}
+    return groups.get(g) or {}
+
+
+def get_param(name, gid=None, default=None):
+    """按群读取数值参数: 群覆盖 > 全局配置 > 默认值"""
+    ov = _group_overrides(gid)
+    if name in ov and ov[name] is not None:
+        return ov[name]
+    d = _cfg()
+    if name in d and d[name] is not None:
+        return d[name]
+    return default if default is not None else _PARAM_NAMES.get(name)
+
+
+def get_feature(name: str, gid=None) -> bool:
+    """按群读取功能开关: 群覆盖 > 全局"""
+    ov = _group_overrides(gid)
+    if name in ov.get("features", {}):
+        return bool(ov["features"][name])
     return FEATURES.get(name, True)
+
+
+def get_reply(name: str, gid=None) -> str:
+    """按群读取回复文案"""
+    ov = _group_overrides(gid)
+    if name in ov.get("replies", {}):
+        return str(ov["replies"][name])
+    return REPLIES.get(name, "")
+
+
+def save_group_config(gid, data: dict):
+    """保存某个群的覆盖配置 (合并, 不影响其他群)"""
+    g = str(gid)
+    if not g:
+        return
+    d = _cfg() or {}
+    groups = d.get("groups") or {}
+    cur = groups.get(g) or {}
+    # 合并覆盖字段
+    for k, v in data.items():
+        if v is None:
+            cur.pop(k, None)
+        else:
+            cur[k] = v
+    groups[g] = cur
+    d["groups"] = groups
+    _db_set(d)
+    _sync(d)
+
+
+def get_group_config(gid) -> dict:
+    """返回该群完整有效配置 (全局默认 + 群覆盖, 供 Web 面板展示)"""
+    d = _cfg() or {}
+    merged = dict(d)
+    groups = d.get("groups") or {}
+    ov = groups.get(str(gid)) or {}
+    for k, v in ov.items():
+        if isinstance(v, dict) and isinstance(merged.get(k), dict):
+            merged[k] = {**merged[k], **v}
+        else:
+            merged[k] = v
+    return merged

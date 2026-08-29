@@ -33,21 +33,22 @@ async def filter_violation(event):
     uid = str(getattr(event, 'user_id', ''))
     if not gid or not uid:
         return False
+    cfg.set_group_gid(gid)
 
     text = getattr(event, 'content', '') or getattr(event, 'message', '') or ''
 
-    # 违禁词检测
-    for w in get_banned_words():
+    # 违禁词检测 (按群)
+    for w in (get_banned_words(gid) or get_banned_words()):
         if w and w in text:
             await _handle_violation(event, gid, uid, f"违禁词: {w}")
             return True
 
     # 刷屏检测
     now = time.time()
-    _spam_records[gid] = [(u, t) for u, t in _spam_records.get(gid, []) if now - t < cfg.SPAM_INTERVAL]
+    _spam_records[gid] = [(u, t) for u, t in _spam_records.get(gid, []) if now - t < cfg.get_param(gid, "spam_interval")]
     _spam_records[gid].append((uid, now))
     same_user = [t for u, t in _spam_records[gid] if u == uid]
-    if len(same_user) >= cfg.SPAM_COUNT:
+    if len(same_user) >= cfg.get_param(gid, "spam_count"):
         await _handle_violation(event, gid, uid, "刷屏")
         return True
 
@@ -61,10 +62,12 @@ async def filter_join_verify(event):
     if et != 'GROUP_MESSAGE_CREATE':
         return False
     uid = str(getattr(event, 'user_id', ''))
+    gid = str(getattr(event, 'group_id', ''))
+    cfg.set_group_gid(gid)
 
     # 清理过期待验证用户
     now = time.time()
-    v = get_join_verify()
+    v = get_join_verify(gid) or get_join_verify()
     timeout = int(v.get('timeout', 300)) if v else 300
     for pending_uid, info in list(_join_verify_pending.items()):
         if now - info['ts'] > timeout:
@@ -97,7 +100,7 @@ async def filter_join_verify(event):
                 except Exception:
                     pass
                 # 通过提示 + 欢迎语 融合为一条 (md)
-                welcome = get_welcome_msg()
+                welcome = get_welcome_msg(gid) or get_welcome_msg()
                 nickname = getattr(event, 'user_name', '') or '新成员'
                 group_name = getattr(event, 'group_name', '') or ''
                 w_text = welcome.format(nickname=nickname, group_name=group_name) if welcome else ""
@@ -140,7 +143,7 @@ async def filter_join_verify(event):
             except Exception:
                 pass
             # 通过提示 + 欢迎语 融合为一条 (md)
-            welcome = get_welcome_msg()
+            welcome = get_welcome_msg(gid) or get_welcome_msg()
             nickname = getattr(event, 'user_name', '') or '新成员'
             group_name = getattr(event, 'group_name', '') or ''
             w_text = welcome.format(nickname=nickname, group_name=group_name) if welcome else ""
@@ -193,6 +196,8 @@ async def on_verify_button(event, match):
 
     if answer == info['code']:
         _join_verify_pending.pop(uid, None)
+        gid = str(getattr(event, 'group_id', ''))
+        cfg.set_group_gid(gid)
         # 撤回验证消息(带按钮的那条)
         try:
             i_data = getattr(event, 'interaction_data', None) or {}
@@ -203,9 +208,8 @@ async def on_verify_button(event, match):
         except Exception:
             pass
         # 通过提示 + 欢迎语 融合为一条 (md) + @新成员识别
-        welcome = get_welcome_msg() or ""
+        welcome = get_welcome_msg(gid) or get_welcome_msg() or ""
         try:
-            gid = str(getattr(event, 'group_id', ''))
             nickname = getattr(event, 'user_name', '') or '新成员'
             group_name = getattr(event, 'group_name', '') or ''
             w_text = welcome.format(nickname=nickname, group_name=group_name) if welcome else ""
@@ -288,6 +292,7 @@ async def on_member_add(event, match):
     uid = str(getattr(event, 'user_id', ''))
     if not gid or not uid:
         return
+    cfg.set_group_gid(gid)
     add_log(f"新成员入群 {uid} -> {gid}")
 
     # 黑名单拦截 (QQ官方无踢出接口 → 永久禁言)
@@ -303,8 +308,8 @@ async def on_member_add(event, match):
                 pass
             return
 
-    # 入群验证
-    v = get_join_verify()
+    # 入群验证 (按群)
+    v = get_join_verify(gid) or get_join_verify()
     if v and v.get('enabled'):
         mode = v.get('mode', 'digits')
         uid_now = uid
@@ -366,7 +371,7 @@ async def on_member_add(event, match):
         return
 
     # 欢迎语
-    welcome = get_welcome_msg()
+    welcome = get_welcome_msg(gid) or get_welcome_msg()
     if welcome:
         nickname = getattr(event, 'user_name', '') or '新成员'
         group_name = getattr(event, 'group_name', '')
@@ -378,12 +383,14 @@ async def on_member_add(event, match):
 async def on_join_request(event, match):
     """入群申请：黑名单用户拒绝，其余通过"""
     gid = str(getattr(event, 'group_id', ''))
+    cfg.set_group_gid(gid)
+    gid = str(getattr(event, 'group_id', ''))
     uid = str(getattr(event, 'user_id', ''))
     req_id = getattr(event, 'join_request_id', '')
     if not gid or not uid:
         return
 
-    join_verify = get_join_verify()
+    join_verify = get_join_verify(gid) or get_join_verify()
     if not join_verify.get('enabled'):
         return  # 未启用审批，交给管理员
 

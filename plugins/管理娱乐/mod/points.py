@@ -11,9 +11,10 @@ _current_gid = ""
 
 
 def set_group(gid):
-    """命令入口设置群上下文 (积分按群隔离)"""
+    """命令入口设置群上下文 (积分/配置按群隔离)"""
     global _current_gid
     _current_gid = str(gid or "")
+    config.set_group_gid(gid or "")
 
 
 def _g():
@@ -95,7 +96,7 @@ def sign(event) -> tuple:
     if u.get(s_key) == today:
         return False, 0, 0, c.REPLIES.get("sign_fail", "今天已签到")
 
-    points = random.randint(c.SIGN_LO, c.SIGN_HI)
+    points = random.randint(c.get_param("sign_lo"), c.get_param("sign_hi"))
     st_key = _streak_key()
     streak = u.get(st_key, 0)
     if u.get(s_key) == _yesterday():
@@ -126,13 +127,14 @@ def lottery(event) -> tuple:
     uid = _uid(event)
     u = ensure_user(event)
     p_key = _points_key()
-    if u.get(p_key, 0) < c.LOTTERY_COST:
-        return False, 0, f"积分不足，需要{c.LOTTERY_COST}积分"
+    if u.get(p_key, 0) < c.get_param("lottery_cost"):
+        cost = c.get_param("lottery_cost")
+        return False, 0, f"积分不足，需要{cost}积分"
 
-    u[p_key] -= c.LOTTERY_COST
+    u[p_key] -= c.get_param("lottery_cost")
 
-    if random.random() < c.LOTTERY_WIN_RATE:
-        win = random.randint(c.LOTTERY_LO, c.LOTTERY_HI)
+    if random.random() < c.get_param("lottery_win_rate"):
+        win = random.randint(c.get_param("lottery_lo"), c.get_param("lottery_hi"))
         u[p_key] += win
         set_user(uid, u)
         return True, win, c.REPLIES.get("lottery_win", "中奖+{points}").format(points=win)
@@ -159,7 +161,7 @@ def rob(event, target_uid, target_nick) -> tuple:
     if armor != "0":
         try:
             if float(armor) > now:
-                penalty = random.randint(c.ROBBERY_LO, c.ROBBERY_HI)
+                penalty = random.randint(c.get_param("robbery_lo"), c.get_param("robbery_hi"))
                 p_key = _points_key()
                 u[p_key] = max(0, u.get(p_key, 0) - penalty)
                 set_user(uid, u)
@@ -167,8 +169,8 @@ def rob(event, target_uid, target_nick) -> tuple:
         except ValueError:
             pass
 
-    if random.random() < c.ROBBERY_SUCCESS_RATE:
-        pts = random.randint(c.ROBBERY_LO, c.ROBBERY_HI)
+    if random.random() < c.get_param("robbery_rate"):
+        pts = random.randint(c.get_param("robbery_lo"), c.get_param("robbery_hi"))
         tp_key = _points_key()
         pts = min(pts, tu.get(tp_key, 0))
         tu[tp_key] = max(0, tu.get(tp_key, 0) - pts)
@@ -190,13 +192,15 @@ def buy_armor(event) -> tuple:
     uid = _uid(event)
     u = ensure_user(event)
     p_key = _points_key()
-    if u.get(p_key, 0) < c.ARMOR_COST:
-        return False, f"积分不足，需要{c.ARMOR_COST}积分"
+    armor_cost = c.get_param("armor_cost")
+    armor_days = c.get_param("armor_days")
+    if u.get(p_key, 0) < armor_cost:
+        return False, f"积分不足，需要{armor_cost}积分"
 
-    u[p_key] -= c.ARMOR_COST
-    u["armor_until"] = str(time.time() + c.ARMOR_DAYS * 86400)
+    u[p_key] -= armor_cost
+    u["armor_until"] = str(time.time() + armor_days * 86400)
     set_user(uid, u)
-    return True, f"🛡 反甲已购买！有效期{c.ARMOR_DAYS}天，抢劫你的人会被反弹"
+    return True, f"🛡 反甲已购买！有效期{armor_days}天，抢劫你的人会被反弹"
 
 
 def get_rank(event) -> list:

@@ -198,28 +198,92 @@ def set_violations(gid, data):
     _save("violations", all_v)
 
 
-def get_banned_words():
-    return _load("banned_words")
+def get_banned_words(gid=None):
+    """违禁词: 按群 {gid: [...]} 存储, 无群时读全局列表"""
+    d = _load("banned_words")
+    if gid is not None:
+        if isinstance(d, dict):
+            return d.get(str(gid))
+        return None  # 旧格式是全局列表, 群级未定义
+    if isinstance(d, dict):
+        return d.get("_global", [])
+    return d
 
 
-def set_banned_words(data):
-    _save("banned_words", data)
+def set_banned_words(data, gid=None):
+    """保存违禁词: gid 为空保存全局, 否则保存该群"""
+    if gid is None:
+        # 全局: 若已是 dict 格式保留群条目, 更新 _global
+        d = _load("banned_words")
+        if isinstance(d, dict):
+            d["_global"] = data
+            _save("banned_words", d)
+        else:
+            _save("banned_words", data)
+        return
+    d = _load("banned_words")
+    if not isinstance(d, dict):
+        d = {"_global": d if isinstance(d, list) else []}
+    d[str(gid)] = data
+    _save("banned_words", d)
 
 
-def get_welcome_msg():
-    return _load("welcome_msg")
+def get_welcome_msg(gid=None):
+    """欢迎语: 按群 {gid: str} 存储, 无群时读全局"""
+    d = _load("welcome_msg")
+    if gid is not None:
+        if isinstance(d, dict):
+            return d.get(str(gid))
+        return None
+    if isinstance(d, dict):
+        return d.get("_global", "")
+    return d
 
 
-def set_welcome_msg(data):
-    _save("welcome_msg", data)
+def set_welcome_msg(data, gid=None):
+    """保存欢迎语: gid 为空保存全局"""
+    if gid is None:
+        d = _load("welcome_msg")
+        if isinstance(d, dict):
+            d["_global"] = data
+            _save("welcome_msg", d)
+        else:
+            _save("welcome_msg", data)
+        return
+    d = _load("welcome_msg")
+    if not isinstance(d, dict):
+        d = {"_global": d if isinstance(d, str) else ""}
+    d[str(gid)] = data
+    _save("welcome_msg", d)
 
 
-def get_join_verify():
-    return _load("join_verify")
+def get_join_verify(gid=None):
+    """入群验证: 按群 {gid: {...}} 存储, 无群时读全局"""
+    d = _load("join_verify")
+    if gid is not None:
+        if isinstance(d, dict):
+            return d.get(str(gid))
+        return None
+    if isinstance(d, dict):
+        return d.get("_global")
+    return d
 
 
-def set_join_verify(data):
-    _save("join_verify", data)
+def set_join_verify(data, gid=None):
+    """保存入群验证: gid 为空保存全局"""
+    if gid is None:
+        d = _load("join_verify")
+        if isinstance(d, dict):
+            d["_global"] = data
+            _save("join_verify", d)
+        else:
+            _save("join_verify", data)
+        return
+    d = _load("join_verify")
+    if not isinstance(d, dict):
+        d = {"_global": d if isinstance(d, dict) else {}}
+    d[str(gid)] = data
+    _save("join_verify", d)
 
 
 def get_doubao_cookie():

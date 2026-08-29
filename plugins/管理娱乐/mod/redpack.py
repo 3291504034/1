@@ -19,10 +19,10 @@ def create_redpack(event, total: int, count: int, code: str = "") -> str:
     uid = _uid(event)
     u = ensure_user(event)
 
-    if total < config.REDPACK_MIN:
+    if total < config.get_param("redpack_min"):
         return ""
-    if count > config.REDPACK_MAX_COUNT:
-        count = config.REDPACK_MAX_COUNT
+    if count > config.get_param("redpack_max_count"):
+        count = config.get_param("redpack_max_count")
     if get_points(uid) < total:
         return ""
 

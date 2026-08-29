@@ -34,7 +34,7 @@
         <button class="icon-btn sidebar-toggle" id="sidebar-toggle" type="button" title="展开导航">☰</button>
         <h1 id="page-title">数据总览</h1>
         <div class="top-actions">
-          <select id="gid-select" class="gid-select" title="选择群（积分/黑名单按群独立）"></select>
+          <select id="gid-select" class="gid-select" title="选择编辑范围：全部群=全局配置，选群=仅该群配置（积分/黑名单/配置均按群独立）"></select>
           <button class="btn" id="refresh-btn" type="button">刷新</button>
         </div>
       </header>
@@ -71,7 +71,7 @@
         <!-- 参数配置 -->
         <section class="page" id="page-config">
           <div class="panel" style="max-width:680px">
-            <div class="panel-head"><div><h2>参数配置</h2><p>修改后点击保存立即生效</p></div></div>
+            <div class="panel-head"><div><h2>参数配置</h2><p>修改后点击保存立即生效 · 顶部选择群可单独调整该群参数</p></div></div>
             <div class="panel-body config-grid" id="config-grid"></div>
             <div class="panel-actions"><button class="btn primary" id="save-config">保存配置</button></div>
           </div>
@@ -80,7 +80,7 @@
         <!-- 功能开关 -->
         <section class="page" id="page-features">
           <div class="panel">
-            <div class="panel-head"><div><h2>功能开关</h2><p>点击开关即时生效</p></div></div>
+            <div class="panel-head"><div><h2>功能开关</h2><p>点击开关即时生效 · 选群后只影响该群</p></div></div>
             <div class="panel-body feature-grid" id="feature-grid"></div>
           </div>
         </section>
